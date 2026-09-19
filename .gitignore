@@ -1,0 +1,16 @@
+# Entorno virtual
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Secretos
+.env
+
+# Datos crudos y base local (los fixtures SI se commitean, son evidencia)
+data/raw/
+*.db
+
+# Editor
+.vscode/
