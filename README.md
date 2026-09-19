@@ -24,7 +24,7 @@ OpenWeather:
 ```
 OPENWEATHER_API_KEY=tu_clave_aca
 ```
-La API Key se extrae de https://openweathermap.org/ap
+La API Key se extrae de https://openweathermap.org/api
 
 Para correr el programa:
 
@@ -78,7 +78,8 @@ entrega.
 
 El sitio que se scrapea es https://www.argentina.gob.ar/noticias.
 
-Idealmente hubieramos scrapeado https://www.smn.gob.ar/alerta pero requiere ejecucción Javascript, cosa que no hemos hecho con BeautifulSoup
+Idealmente hubieramos scrapeado https://www.smn.gob.ar/alertas pero esa pagina requiere ejecutar
+JavaScript y BeautifulSoup no lo hace.
 
 El scraping viene **activado** por defecto. La consigna pide que se pueda
 desactivar por configuracion, asi que en `monitoreo/app/config.py` esta la
@@ -113,6 +114,7 @@ una alerta se toca ese archivo y nada mas.
 
 ## Datos que todavia son de ejemplo
 
-- Los umbrales de lluvia y viento estan puestos arbitraramente.
+- Los umbrales de lluvia y viento son provisorios. Falta confirmarlos
+  contra el Sistema de Alerta Temprana del SMN y citar la fuente.
 - El diccionario `RECLAMOS` de `barrios.py` tiene valores de ejemplo. En la
   segunda entrega salen del CSV de SUACI 2023 leido con Pandas.
