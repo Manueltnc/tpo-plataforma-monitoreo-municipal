@@ -1,6 +1,7 @@
 # API publica de Openweather: https://openweathermap.org/api
 # Es publica porque tiene documentacion abierta y clave gratis para cualquiera.
 
+import json
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -11,10 +12,34 @@ from monitoreo.app import config
 HUSO_CABA = timezone(timedelta(hours=config.HORAS_UTC_CABA))
 
 
+def leer_fixture():
+    """Pronostico guardado en data/fixtures, para trabajar sin clave ni internet."""
+    ruta = config.DIR_FIXTURES / config.PRONOSTICO_FIXTURE
+
+    with open(ruta, encoding='utf-8') as archivo:
+        return json.load(archivo)
+
+
+def validar_respuesta(datos):
+    """Comprueba que la respuesta tenga la forma que esperamos antes de usarla."""
+    if not isinstance(datos, dict) or not datos.get('list'):
+        raise ValueError('La respuesta de OpenWeather no trae la lista de pronosticos')
+
+    for item in datos['list']:
+        if 'dt' not in item or 'main' not in item or 'wind' not in item:
+            raise ValueError('Un bloque del pronostico viene incompleto')
+
+    return datos
+
+
 def pedir_a_la_api():
     api_key = config.get_api_key()
 
     if api_key == '':
+        if config.USAR_FIXTURE_SI_FALTA_CLAVE:
+            print(f'  [clima] Sin OPENWEATHER_API_KEY: uso el pronostico guardado ({config.PRONOSTICO_FIXTURE}).')
+            return validar_respuesta(leer_fixture())
+
         raise SystemExit('Falta OPENWEATHER_API_KEY en el archivo .env')
 
     parametros = {
@@ -31,7 +56,7 @@ def pedir_a_la_api():
     except requests.exceptions.RequestException as error:
         raise SystemExit(f'No se pudo consultar el clima: {error}')
 
-    return respuesta.json()
+    return validar_respuesta(respuesta.json())
 
 
 # -- Transformacion de la respuesta (N04) --

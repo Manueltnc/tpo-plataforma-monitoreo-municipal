@@ -1,1 +1,1 @@
-# Consumo de APIs: OpenWeather (publica) y el webhook del municipio (privada)
+# Consumo de APIs: OpenWeather (publica) y la API propia del proyecto (FastAPI, privada)

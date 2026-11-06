@@ -1,4 +1,9 @@
-# Intentamos cubrir N04 con validacion y limpieza de datos, N05 y N06 con las listas de barrios y sus criterios y valores fijos de reclamos, N07 normalizacion de nombres. 
+# N04 validacion y limpieza de datos, N05 y N06 listas y diccionarios de barrios,
+# N07 normalizacion de nombres.
+
+import csv
+
+from monitoreo.app import config
 
 # 48 barrios de CABA
 BARRIOS = [
@@ -15,30 +20,19 @@ BARRIOS = [
     'Villa Soldati', 'Villa Urquiza',
 ]
 
-# Criticidad barrios por cercania a factores como rios y cuencas (sacado de en-linea)
-CRITICIDAD = {
-    'Agronomia': 5, 'Almagro': 3, 'Balvanera': 3, 'Barracas': 4,
-    'Belgrano': 4, 'Boedo': 3, 'Caballito': 5, 'Chacarita': 5,
-    'Coghlan': 4, 'Colegiales': 4, 'Constitucion': 3, 'Flores': 4,
-    'Floresta': 5, 'La Boca': 4, 'La Paternal': 5, 'Liniers': 4,
-    'Mataderos': 4, 'Monte Castro': 5, 'Monserrat': 2, 'Nueva Pompeya': 4,
-    'Nunez': 4, 'Palermo': 5, 'Parque Avellaneda': 4,
-    'Parque Chacabuco': 3, 'Parque Chas': 5, 'Parque Patricios': 4,
-    'Puerto Madero': 2, 'Recoleta': 2, 'Retiro': 2, 'Saavedra': 4,
-    'San Cristobal': 3, 'San Nicolas': 2, 'San Telmo': 2,
-    'Velez Sarsfield': 5, 'Versalles': 5, 'Villa Crespo': 5,
-    'Villa del Parque': 5, 'Villa Devoto': 5, 'Villa General Mitre': 5,
-    'Villa Lugano': 4, 'Villa Luro': 5, 'Villa Ortuzar': 5,
-    'Villa Pueyrredon': 4, 'Villa Real': 5, 'Villa Riachuelo': 4,
-    'Villa Santa Rita': 5, 'Villa Soldati': 4, 'Villa Urquiza': 4,
+# El SUACI escribe algunos barrios distinto que nuestra lista oficial.
+# Las claves ya estan normalizadas (minusculas, sin tildes).
+ALIAS_BARRIOS = {
+    'boca': 'La Boca',
+    'paternal': 'La Paternal',
+    'villa gral. mitre': 'Villa General Mitre',
 }
 
-# Cantidad de reclamos estaticos para primera entrega, datos de 2023
-RECLAMOS = {
-    'Villa Crespo': 87, 'Palermo': 64, 'Chacarita': 55, 'Caballito': 71,
-    'Flores': 48, 'Villa Lugano': 62, 'Villa Soldati': 58,
-    'La Boca': 44, 'Barracas': 39, 'Belgrano': 22, 'Recoleta': 8,
-}
+# Vulnerabilidad de cada barrio. La calcula el ETL a partir de los reclamos
+# reales del SUACI 2023 y la guarda en data/processed/vulnerabilidad_barrios.csv
+RUTA_VULNERABILIDAD = config.DIR_PROCESADOS / 'vulnerabilidad_barrios.csv'
+VULNERABILIDAD_NEUTRA = {'reclamos': 0, 'percentil': 0.5, 'factor': 1.0}
+_vulnerabilidad = {}
 
 
 # normalizamos a minisculas, sin acentos y sin whitespace
@@ -56,6 +50,9 @@ def normalizar(texto):
 
 def validar_barrio(nombre):
     buscado = normalizar(nombre)
+
+    if buscado in ALIAS_BARRIOS:
+        return ALIAS_BARRIOS[buscado]
 
     for barrio in BARRIOS:
         if normalizar(barrio) == buscado:
@@ -86,10 +83,34 @@ def armar_mensaje(barrio, evento, nivel, puntos, motivos):
 
     return texto
 
-def criticidad_de_barrio(barrio):
-    return CRITICIDAD[barrio]
+def cargar_vulnerabilidad(ruta=RUTA_VULNERABILIDAD):
+    """Lee el CSV que genero el ETL y arma un diccionario {barrio: datos}."""
+    _vulnerabilidad.clear()
+
+    if not ruta.exists():
+        return _vulnerabilidad
+
+    with open(ruta, encoding='utf-8', newline='') as archivo:
+        for fila in csv.DictReader(archivo):
+            _vulnerabilidad[fila['barrio']] = {
+                'reclamos': int(fila['reclamos']),
+                'percentil': float(fila['percentil']),
+                'factor': float(fila['factor_vulnerabilidad']),
+            }
+
+    return _vulnerabilidad
 
 
-def reclamos_de_barrio(barrio):
-    return RECLAMOS.get(barrio, 0)
+def hay_datos_vulnerabilidad():
+    if not _vulnerabilidad:
+        cargar_vulnerabilidad()
 
+    return len(_vulnerabilidad) > 0
+
+
+def vulnerabilidad_de_barrio(barrio):
+    """Si no hay datos del ETL se usa un factor neutro (1.0): ni suma ni resta."""
+    if not _vulnerabilidad:
+        cargar_vulnerabilidad()
+
+    return _vulnerabilidad.get(barrio, VULNERABILIDAD_NEUTRA)

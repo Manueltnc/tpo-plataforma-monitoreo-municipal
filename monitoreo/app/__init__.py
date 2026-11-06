@@ -1,1 +1,1 @@
-# Configuracion, datos de barrios y las reglas de riesgo
+# Configuracion, datos de barrios, reglas del indicador de riesgo y servicio de riesgo

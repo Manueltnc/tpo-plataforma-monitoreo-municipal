@@ -1,1 +1,1 @@
-# Proceso ETL con Pandas. Queda para la segunda entrega (N19 a N22)
+# Proceso ETL con Pandas: extraer, transformar, cargar
