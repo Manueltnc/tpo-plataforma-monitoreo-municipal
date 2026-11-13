@@ -15,13 +15,16 @@ cuando quiera, y si su barrio entra en riesgo le llega un correo.
 
 Ademas, la guardia municipal recibe todos los dias un reporte con los 48 barrios.
 
-## Como probarlo (sin claves)
+## Como probarlo
 
-No hace falta ninguna clave ni cuenta. Sin clave de OpenWeather se usa un pronostico
-guardado, y sin cuenta de correo los mails se guardan como archivos `.eml` que se pueden
-abrir con Outlook, Thunderbird o la app Correo de Windows.
+No hace falta ninguna clave ni cuenta: el proyecto ya trae un pronostico guardado con dias de
+tormenta, y los correos se guardan como archivos en vez de enviarse. Son 5 pasos de unos
+minutos cada uno. Hace falta Python 3.10 o mas nuevo.
 
-**1. Instalar** (Windows. En Mac o Linux: `source .venv/bin/activate` y `cp`)
+Los comandos son para Windows y se escriben en una terminal abierta en la carpeta del
+proyecto. En Mac o Linux, en el paso 1 usar `source .venv/bin/activate` y `cp` en vez de `copy`.
+
+### Paso 1. Instalar
 
 ```
 python -m venv .venv
@@ -30,57 +33,76 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-El `.env` que se copia ya viene listo para probar: usa un pronostico guardado con dias de
-tormenta (`forecast_tormenta.json`) para que se vean alertas.
+El `.env` copiado ya esta listo para probar, no hay que cambiarle nada.
 
-**2. Correr las pruebas**
+### Paso 2. Correr las pruebas
 
 ```
 python -m tests.test_plataforma
 ```
 
-**3. Ver la API funcionando**
+Tiene que terminar con `Todas las pruebas pasaron.`
+
+### Paso 3. Ver la API en un solo comando
 
 ```
 python demo_api.py
 ```
 
-Levanta la API, registra una vecina de Palermo, consulta su barrio y muestra el JSON de
-respuesta y los errores (sin clave, clave invalida, barrio que no existe, email repetido).
+Registra una vecina de Palermo, le pide a la API el riesgo de su barrio y muestra la respuesta
+completa. Al final prueba los errores: sin clave, clave inventada, barrio que no existe y
+email repetido.
 
-**4. Registrarse como vecino**
+### Paso 4. Probar la API desde el navegador
 
 ```
 python -m uvicorn monitoreo.apis.servidor:app
 ```
 
-Abrir http://127.0.0.1:8000/docs en el navegador. Ahi FastAPI arma una pagina para probar
-la API:
+Dejar esa terminal abierta y entrar a **http://127.0.0.1:8000/docs**. Es una pagina que arma
+FastAPI para probar cada ruta.
 
-- En `POST /usuarios` tocar *Try it out* y mandar, por ejemplo:
-  `{"nombre": "Profe", "email": "profe@ejemplo.com", "barrio": "Palermo"}`.
-  La respuesta trae la `api_key`.
-- En `GET /mi-barrio` tocar *Try it out*, pegar la clave en `x-api-key` y ejecutar.
+1. Abrir `POST /usuarios`, tocar **Try it out**, pegar esto y tocar **Execute**:
+   ```
+   {"nombre": "Profe", "email": "profe@ejemplo.com", "barrio": "Palermo"}
+   ```
+   La respuesta trae una `api_key`. Copiarla.
+2. Abrir `GET /mi-barrio`, tocar **Try it out**, pegar la clave en el campo `x-api-key` y
+   tocar **Execute**. La respuesta dice el nivel de Palermo, por que y que hacer.
+3. Para cerrar el servidor, volver a la terminal y apretar `Ctrl+C`.
 
-Cortar el servidor con `Ctrl+C`.
-
-**5. Correr el programa del dia**
+### Paso 5. Correr el programa del dia
 
 ```
 python main.py
 ```
 
-Muestra el pronostico, los avisos oficiales y los barrios por nivel. Guarda el reporte en
-`data/processed/reportes/`, el grafico en `data/processed/graficos/pronostico.png` y los
-correos en `data/processed/correos/` (uno para la guardia y uno para cada vecino registrado
-cuyo barrio esta en riesgo).
+Muestra el pronostico, las noticias oficiales y los barrios por nivel. Ademas guarda:
 
-**Para recibir los correos de verdad:** completar `EMAIL_USER` y `EMAIL_PASSWORD` en el
-`.env` con una cuenta de Gmail (ver "Gmail desde Python" mas abajo) y registrarse con un
-correo real. Las direcciones `@ejemplo.com` nunca se envian.
+| Que | Donde |
+|---|---|
+| Reporte del dia | `data/processed/reportes/` |
+| Grafico del pronostico | `data/processed/graficos/pronostico.png` |
+| Correos (se abren con doble clic) | `data/processed/correos/` |
 
-**Para usar el clima real:** sacar una clave gratis en https://openweathermap.org/api y
-ponerla en `OPENWEATHER_API_KEY`.
+Hay un correo para la guardia municipal y uno para el vecino registrado en el paso 4.
+
+### Si algo falla
+
+| Problema | Solucion |
+|---|---|
+| `python` no se reconoce | Instalar Python desde https://www.python.org y marcar "Add to PATH" |
+| El puerto 8000 esta ocupado | `python -m uvicorn monitoreo.apis.servidor:app --port 8001` y entrar a http://127.0.0.1:8001/docs |
+| El paso 3 dice que ya hay un servidor prendido | Cerrar el servidor del paso 4 con `Ctrl+C` y volver a correr la demo |
+| Un `.eml` no abre con doble clic | Abrirlo con Outlook, Thunderbird o arrastrarlo al navegador |
+
+### Con claves propias (opcional)
+
+- **Clima real:** sacar una clave gratis en https://openweathermap.org/api y ponerla en
+  `OPENWEATHER_API_KEY` dentro del `.env`.
+- **Correos de verdad:** completar `EMAIL_USER` y `EMAIL_PASSWORD` con una cuenta de Gmail
+  (ver "Gmail desde Python" mas abajo) y registrarse con un correo real. Las direcciones
+  `@ejemplo.com` nunca se envian.
 
 ## Que hace cada archivo
 

@@ -32,6 +32,13 @@ def intentar(descripcion, funcion, *args):
 
 
 def levantar_servidor():
+    # si ya hay un servidor prendido, la demo hablaria con ese y no con el suyo
+    try:
+        cliente.revisar_salud()
+        raise SystemExit('Ya hay un servidor prendido en el puerto 8000. Cerralo con Ctrl+C y volve a correr la demo.')
+    except cliente.ErrorApi:
+        pass
+
     opciones = uvicorn.Config(servidor.app, host=config.API_HOST, port=config.API_PUERTO, log_level='warning')
     uv = uvicorn.Server(opciones)
     hilo = threading.Thread(target=uv.run, daemon=True)
