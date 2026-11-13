@@ -1,61 +1,77 @@
 # API propia del proyecto, hecha con FastAPI (N15, N17).
+# Esta pensada para el vecino: se registra con su barrio y consulta su riesgo.
 #
 #   GET  /salud            publica, para ver que el servidor esta vivo
-#   POST /usuarios         registro de usuarios: devuelve su API key
-#   GET  /riesgo           riesgo de los 48 barrios (necesita API key)
-#   GET  /riesgo/{barrio}  riesgo de un barrio (necesita API key)
+#   POST /usuarios         registro: nombre, email y barrio. Devuelve la API key
+#   GET  /mi-barrio        riesgo del barrio con el que se registro (necesita API key)
+#   GET  /riesgo/{barrio}  riesgo de cualquier barrio (necesita API key)
 #
 # La API key se manda en el header X-API-Key.
-# Para levantarla sola:  python -m uvicorn monitoreo.apis.servidor:app
+# Para levantarla:  python -m uvicorn monitoreo.apis.servidor:app
 
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from monitoreo.apis import usuarios
-from monitoreo.app import barrios, config, servicio
+from monitoreo.app import barrios, config, reglas, servicio
 
-app = FastAPI(title='Monitoreo municipal CABA', version='2.0')
+app = FastAPI(title='Monitoreo de riesgo por clima - CABA', version='3.0')
 
 limitador = usuarios.LimitadorPedidos(config.LIMITE_PEDIDOS_POR_MINUTO)
 
 
 class UsuarioEntrada(BaseModel):
-    nombre: str = Field(min_length=2, max_length=60)
-    email: str = Field(min_length=5, max_length=120)
-
-
-class UsuarioRespuesta(BaseModel):
     nombre: str
     email: str
-    api_key: str
-    aviso: str
+    barrio: str
 
 
 def exigir_clave(x_api_key: Optional[str] = Header(default=None)):
-    """Dependencia: corta el pedido si la API key falta, es invalida o se paso del limite."""
+    """Corta el pedido si la API key falta, no existe o se paso del limite."""
     if not x_api_key:
         raise HTTPException(status_code=401, detail='Falta el header X-API-Key')
 
-    usuario = usuarios.validar_clave(x_api_key)
+    usuario = usuarios.buscar_por_clave(x_api_key)
     if usuario is None:
-        raise HTTPException(status_code=401, detail='API key invalida')
+        raise HTTPException(status_code=401, detail='La API key no es válida')
 
     if not limitador.permitir(x_api_key):
-        raise HTTPException(status_code=429, detail='Demasiados pedidos, espere un minuto')
+        raise HTTPException(status_code=429, detail='Demasiados pedidos, esperá un minuto')
 
     return usuario
 
 
-def _barrio_a_dict(fila):
+def respuesta_de_barrio(barrio):
+    """Arma el JSON que devuelve la API para un barrio."""
+    riesgo = servicio.riesgo_actual()
+    fila = servicio.buscar_barrio(riesgo, barrio)
+
+    dias = []
+    for dia in fila['proximos_dias']:
+        dias.append({
+            'fecha': str(dia['fecha']),
+            'dia': dia['dia'],
+            'nivel': dia['nivel'],
+            'lluvia_mm': dia['lluvia_mm'],
+            'viento_max_kmh': dia['viento_kmh'],
+            'temp_min': dia['temp_min'],
+            'temp_max': dia['temp_max'],
+        })
+
     return {
         'barrio': fila['barrio'],
+        'resumen': fila['resumen'],
         'nivel': fila['nivel'],
-        'indice': fila['puntos'],
-        'peligro': fila['peligro'],
-        'factor_vulnerabilidad': fila['factor'],
+        # 0 normal, 1 atencion, 2 alerta, 3 emergencia: sirve para ordenar o comparar
+        'nivel_numero': reglas.NIVELES.index(fila['nivel']),
+        'fecha': str(fila['fecha']),
+        'que_hacer': fila['que_hacer'],
         'motivos': fila['motivos'],
+        'proximos_dias': dias,
+        'avisos_oficiales': riesgo['scraping']['avisos'],
+        'actualizado': riesgo['actualizado'],
     }
 
 
@@ -64,47 +80,27 @@ def salud():
     return {'estado': 'ok'}
 
 
-@app.post('/usuarios', status_code=201, response_model=UsuarioRespuesta)
+@app.post('/usuarios', status_code=201)
 def crear_usuario(entrada: UsuarioEntrada):
     try:
-        clave = usuarios.registrar_usuario(entrada.nombre, entrada.email)
+        clave = usuarios.registrar_usuario(entrada.nombre, entrada.email, entrada.barrio)
     except usuarios.UsuarioExistente as error:
         raise HTTPException(status_code=409, detail=str(error))
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
 
-    return UsuarioRespuesta(
-        nombre=entrada.nombre.strip(),
-        email=entrada.email.strip().lower(),
-        api_key=clave,
-        aviso='Guarde esta clave: no se vuelve a mostrar.',
-    )
-
-
-@app.get('/riesgo')
-def riesgo(nivel_minimo: Optional[str] = None, usuario: dict = Depends(exigir_clave)):
-    if nivel_minimo is not None and nivel_minimo not in servicio.ORDEN_NIVELES:
-        raise HTTPException(
-            status_code=422,
-            detail=f'nivel_minimo debe ser uno de: {", ".join(servicio.ORDEN_NIVELES)}',
-        )
-
-    datos = servicio.riesgo_actual()
-    filas = datos['resultados']
-
-    if nivel_minimo is not None:
-        corte = servicio.ORDEN_NIVELES.index(nivel_minimo)
-        filas = [f for f in filas if servicio.ORDEN_NIVELES.index(f['nivel']) >= corte]
-
-    filas = sorted(filas, key=lambda f: f['puntos'], reverse=True)
-
     return {
-        'dia_evaluado': str(datos['dia']['fecha']),
-        'lluvia_mm': round(datos['dia']['lluvia_mm'], 1),
-        'viento_kmh': round(datos['dia']['viento_kmh'], 1),
-        'cantidad': len(filas),
-        'barrios': [_barrio_a_dict(f) for f in filas],
+        'nombre': entrada.nombre.strip(),
+        'email': entrada.email.strip().lower(),
+        'barrio': barrios.validar_barrio(entrada.barrio),
+        'api_key': clave,
+        'aviso': 'Guardá esta clave: la vas a necesitar para consultar la API.',
     }
+
+
+@app.get('/mi-barrio')
+def mi_barrio(usuario: dict = Depends(exigir_clave)):
+    return respuesta_de_barrio(usuario['barrio'])
 
 
 @app.get('/riesgo/{barrio}')
@@ -113,10 +109,4 @@ def riesgo_de_barrio(barrio: str, usuario: dict = Depends(exigir_clave)):
     if nombre is None:
         raise HTTPException(status_code=404, detail=f'No existe el barrio "{barrio}"')
 
-    datos = servicio.riesgo_actual()
-    fila = next(f for f in datos['resultados'] if f['barrio'] == nombre)
-
-    respuesta = _barrio_a_dict(fila)
-    respuesta['dia_evaluado'] = str(datos['dia']['fecha'])
-
-    return respuesta
+    return respuesta_de_barrio(nombre)

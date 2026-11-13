@@ -1,8 +1,9 @@
 # Demostracion de la API propia (N15, N16, N17).
-# Levanta el servidor en segundo plano y lo consulta con requests:
-# registro con POST, consultas con API key, y los errores 401, 404 y 409.
-# Usa una base de usuarios temporal, asi se puede correr todas las veces que se quiera.
+# Levanta el servidor en segundo plano y lo consulta con requests, como lo haria
+# la app de un vecino: se registra con su barrio y pide su riesgo.
+# Usa un archivo de usuarios temporal, asi se puede correr todas las veces que se quiera.
 
+import json
 import tempfile
 import threading
 import time
@@ -12,24 +13,21 @@ import uvicorn
 
 from monitoreo.app import config
 
-config.RUTA_DB_USUARIOS = Path(tempfile.mkdtemp()) / 'usuarios_demo.db'
+config.RUTA_USUARIOS = Path(tempfile.mkdtemp()) / 'usuarios_demo.csv'
 
 from monitoreo.apis import cliente, servidor
 
 
 def paso(texto):
     print()
-    print('-' * 60)
     print(texto)
 
 
 def intentar(descripcion, funcion, *args):
     try:
-        resultado = funcion(*args)
-        print(f'  OK: {descripcion}')
-        return resultado
+        return funcion(*args)
     except cliente.ErrorApi as error:
-        print(f'  Error esperado en "{descripcion}": {error}')
+        print(f'  Error esperado ({descripcion}): {error}')
         return None
 
 
@@ -39,49 +37,44 @@ def levantar_servidor():
     hilo = threading.Thread(target=uv.run, daemon=True)
     hilo.start()
 
-    for _ in range(50):
+    # esperamos a que el servidor conteste
+    for intento in range(50):
         try:
             cliente.revisar_salud()
             return uv, hilo
         except cliente.ErrorApi:
             time.sleep(0.2)
 
-    raise SystemExit('El servidor no arranco')
+    raise SystemExit('El servidor no arrancó')
 
 
 def main():
     uv, hilo = levantar_servidor()
 
     try:
-        paso('1. GET /salud (publica, no pide clave)')
+        paso('1. GET /salud (no pide clave)')
         print(' ', cliente.revisar_salud())
 
-        paso('2. GET /riesgo sin API key')
-        intentar('consulta sin clave', cliente.consultar_riesgo, '')
-
-        paso('3. POST /usuarios (registro)')
-        usuario = cliente.registrar_usuario('Alumno Demo', 'alumno@ejemplo.com')
-        print(f'  Usuario: {usuario["nombre"]} | API key: {usuario["api_key"][:8]}... ({usuario["aviso"]})')
+        paso('2. POST /usuarios: una vecina de Palermo se registra')
+        usuario = cliente.registrar_usuario('Ana Vecina', 'ana@ejemplo.com', 'Palermo')
+        print(f'  Registrada: {usuario["nombre"]}, barrio {usuario["barrio"]}')
+        print(f'  Su API key: {usuario["api_key"]}')
         clave = usuario['api_key']
 
-        paso('4. POST /usuarios repetido (mismo email)')
-        intentar('registro duplicado', cliente.registrar_usuario, 'Alumno Demo', 'alumno@ejemplo.com')
+        paso('3. GET /mi-barrio con su API key (respuesta completa en JSON)')
+        datos = cliente.consultar_mi_barrio(clave)
+        print(json.dumps(datos, indent=2, ensure_ascii=False))
 
-        paso('5. GET /riesgo con API key y filtro nivel_minimo=atencion')
-        datos = intentar('consulta con clave', cliente.consultar_riesgo, clave, 'atencion')
-        if datos:
-            print(f'  Dia evaluado: {datos["dia_evaluado"]} | barrios en atencion o mas: {datos["cantidad"]}')
-            for fila in datos['barrios'][:5]:
-                print(f'  - {fila["barrio"]}: {fila["nivel"]} (indice {fila["indice"]})')
+        paso('4. GET /riesgo/{barrio}: consulta otro barrio')
+        otro = cliente.consultar_barrio(clave, 'La Boca')
+        print(f'  {otro["resumen"]}')
 
-        paso('6. GET /riesgo/{barrio}')
-        fila = intentar('barrio Palermo', cliente.consultar_barrio, clave, 'Palermo')
-        if fila:
-            print(f'  Palermo: {fila["nivel"]}, indice {fila["indice"]}, factor {fila["factor_vulnerabilidad"]}')
+        paso('5. Errores que maneja la API')
+        intentar('sin API key', cliente.consultar_mi_barrio, '')
+        intentar('API key inventada', cliente.consultar_mi_barrio, 'clave-inventada')
         intentar('barrio que no existe', cliente.consultar_barrio, clave, 'Narnia')
-
-        paso('7. GET /riesgo con una clave inventada')
-        intentar('clave invalida', cliente.consultar_riesgo, 'clave-inventada')
+        intentar('email ya registrado', cliente.registrar_usuario, 'Ana', 'ana@ejemplo.com', 'Palermo')
+        intentar('barrio invalido al registrarse', cliente.registrar_usuario, 'Juan', 'juan@ejemplo.com', 'Narnia')
     finally:
         uv.should_exit = True
         hilo.join(5)

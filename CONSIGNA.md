@@ -16,7 +16,7 @@ riesgos urbanos.
 
 **Equipo sugerido:** 6 estudiantes (lider tecnico, dev scraping/API, dev
 ETL-Pandas, dev correo/reportes, tester/documentador, responsable de
-integracion). Nota: este TPO se desarrolla en solitario.
+integracion).
 
 **Duracion:** 4 meses, entregas parciales cada 2 semanas y demostracion final.
 
@@ -24,8 +24,8 @@ integracion). Nota: este TPO se desarrolla en solitario.
 
 ## Alcance funcional minimo solicitado
 
-La columna "Entrega" marca el corte acordado: la primera entrega cubre hasta
-Unidad 3 (APIs). Todo lo de Pandas, visualizacion y email queda para la segunda.
+La columna "Entrega" marca el corte acordado con el profesor: la primera entrega
+cubre N01 a N13 y la segunda N14 a N25.
 
 | # | Necesidad funcional | Conceptos | Unidad | Entrega |
 |---|---|---|---|---|
@@ -42,11 +42,11 @@ Unidad 3 (APIs). Todo lo de Pandas, visualizacion y email queda para la segunda.
 | N11 | Recuperar valores de elementos HTML encontrados: texto, href, src, class, id, data-* y atributos relevantes. | HTML atributos | 2 | **1** |
 | N12 | Utilizar find_all con busqueda por etiqueta, clase, id, atributos, texto, funcion lambda y combinaciones de criterios. | find_all | 2 | **1** |
 | N13 | Integrar al menos una API publica y distinguir en la documentacion una API publica frente a una privada o interna. | API | 3 | **1** |
-| N14 | Consumir respuestas JSON y, cuando sea posible, XML, explicando diferencias de estructura y parseo. | JSON/XML | 3 | **1** |
-| N15 | Usar metodos HTTP GET y POST como minimo, y documentar cuando serian necesarios PUT, PATCH y DELETE. | HTTP | 3 | **1** |
-| N16 | Instalar, importar y usar requests para llamadas HTTP, gestionando status codes, headers, parametros, timeout y errores. | requests | 3 | **1** |
-| N17 | Implementar autenticacion con API key o token en headers o parametros, evitando exponer credenciales en el codigo fuente. | auth | 3 | **1** |
-| N18 | Ejecutar una practica de consumo de API publica, por ejemplo OpenWeatherMap u otra equivalente con clave de prueba. | API publica | 3 | **1** |
+| N14 | Consumir respuestas JSON y, cuando sea posible, XML, explicando diferencias de estructura y parseo. | JSON/XML | 3 | 2 |
+| N15 | Usar metodos HTTP GET y POST como minimo, y documentar cuando serian necesarios PUT, PATCH y DELETE. | HTTP | 3 | 2 |
+| N16 | Instalar, importar y usar requests para llamadas HTTP, gestionando status codes, headers, parametros, timeout y errores. | requests | 3 | 2 |
+| N17 | Implementar autenticacion con API key o token en headers o parametros, evitando exponer credenciales en el codigo fuente. | auth | 3 | 2 |
+| N18 | Ejecutar una practica de consumo de API publica, por ejemplo OpenWeatherMap u otra equivalente con clave de prueba. | API publica | 3 | 2 |
 | N19 | Disenar un proceso ETL completo: extraccion web/API/archivo comprimido, transformacion con Pandas y carga en CSV, Excel o base local. | ETL | 4 | 2 |
 | N20 | Crear DataFrames y Series, aplicar operaciones basicas, metodos principales, cambios de tipos, manejo de nulos y funciones por columna. | Pandas | 4 | 2 |
 | N21 | Leer datos con Pandas desde CSV, Excel, JSON y archivos comprimidos, y exportar resultados limpios a CSV, Excel y JSON. | import/export | 4 | 2 |
@@ -89,8 +89,6 @@ DELETE. Codigos de estado (200, 400, 404, 500). Modulo requests. Solicitudes GET
 y POST. Manejo de respuestas JSON. Parametros en GET. Autenticacion con API keys
 y tokens. Manejo de errores. Validacion de respuestas. Rate limiting.
 Ejercitacion sobre API publica (ej. OpenWeatherMap).
-
-**--- CORTE DE LA PRIMERA ENTREGA ---**
 
 **Unidad 4 - Importar/Exportar datos con Python.** Proceso ETL. Estructuras de
 datos en Pandas: DataFrame y Series. Etiquetas de columna e indices de fila.

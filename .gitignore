@@ -5,15 +5,19 @@
 __pycache__/
 *.pyc
 
-# Secretos
+# Claves (API de clima y correo)
 .env
 
-# Datos crudos y base local (los fixtures SI se commitean, son evidencia)
+# Vecinos registrados en la API: tiene sus API keys
+data/usuarios.csv
+
+# SUACI completo (pesa ~190 MB). En el repo queda una muestra en data/fixtures
 data/raw/
-*.db
+
+# Lo que genera cada corrida diaria de main.py
+data/processed/reportes/
+data/processed/correos/
+data/processed/graficos/pronostico.png
 
 # Editor
 .vscode/
-
-# Borradores de correo generados por el programa
-data/processed/correos/

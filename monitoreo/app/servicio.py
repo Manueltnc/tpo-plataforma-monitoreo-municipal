@@ -1,56 +1,72 @@
-# Junta el clima y las reglas para obtener el riesgo de todos los barrios.
-# Lo usan main.py y la API propia, asi el calculo vive en un solo lugar.
+# Junta las tres partes: el pronostico (API), los avisos oficiales (scraping) y los
+# criterios de riesgo (reglas). Lo usan main.py, la API propia y los correos, asi
+# el calculo vive en un solo lugar.
 
 import time
+from datetime import datetime
 
 from monitoreo.apis import clima
 from monitoreo.app import barrios, config, reglas
+from monitoreo.scraping import avisos
 
-ORDEN_NIVELES = ['normal', 'atencion', 'alerta', 'emergencia']
+DIAS_SEMANA = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
 _cache = {'momento': 0, 'valor': None}
 
 
-# de todos los dias del pronostico nos quedamos con el que mas llueve
-def peor_dia(dias):
-    peor = dias[0]
+def fecha_legible(fecha):
+    """2026-11-14 -> 'viernes 14/11'"""
+    return f'{DIAS_SEMANA[fecha.weekday()]} {fecha.day:02d}/{fecha.month:02d}'
+
+
+def riesgo_de_barrio(barrio, dias):
+    """Evalua al barrio en cada dia del pronostico y se queda con el peor dia."""
+    proximos_dias = []
 
     for dia in dias:
-        if dia['lluvia_mm'] > peor['lluvia_mm']:
-            peor = dia
+        resultado = reglas.evaluar_barrio(barrio, dia)
 
-    return peor
-
-
-def evaluar_barrios(dia):
-    resultados = []
-
-    for barrio in barrios.BARRIOS:
-        riesgo = reglas.evaluar_riesgo(barrio, dia)
-
-        resultados.append({
-            'barrio': barrio,
-            'puntos': riesgo['puntos'],
-            'peligro': riesgo['peligro'],
-            'factor': riesgo['factor'],
-            'motivos': riesgo['motivos'],
-            'nivel': reglas.clasificar(riesgo['puntos']),
+        proximos_dias.append({
+            'fecha': dia['fecha'],
+            'dia': fecha_legible(dia['fecha']),
+            'nivel': resultado['nivel'],
+            'causa': resultado['causa'],
+            'motivos': resultado['motivos'],
+            'lluvia_mm': round(dia['lluvia_mm'], 1),
+            'viento_kmh': round(dia['viento_kmh']),
+            'temp_min': round(dia['temp_min']),
+            'temp_max': round(dia['temp_max']),
         })
 
-    return resultados
+    # el peor dia: el de nivel mas alto (si empatan, el primero)
+    peor = proximos_dias[0]
+    for dia in proximos_dias:
+        if reglas.NIVELES.index(dia['nivel']) > reglas.NIVELES.index(peor['nivel']):
+            peor = dia
+
+    return {
+        'barrio': barrio,
+        'nivel': peor['nivel'],
+        'resumen': armar_resumen(barrio, peor),
+        'fecha': peor['fecha'],
+        'que_hacer': reglas.RECOMENDACIONES[peor['nivel']],
+        'motivos': peor['motivos'],
+        'proximos_dias': proximos_dias,
+    }
 
 
-def contar_niveles(resultados):
-    conteo = {'emergencia': 0, 'alerta': 0, 'atencion': 0, 'normal': 0}
+def armar_resumen(barrio, dia):
+    """Una frase para una persona: 'Palermo: alerta por lluvia el viernes 14/11'"""
+    if dia['nivel'] == 'normal':
+        return f'{barrio}: sin riesgo por clima en los próximos días'
 
-    for fila in resultados:
-        conteo[fila['nivel']] = conteo[fila['nivel']] + 1
-
-    return conteo
+    nombre = reglas.NOMBRES_NIVEL[dia['nivel']].lower()
+    return f'{barrio}: {nombre} por {dia["causa"]} el {dia["dia"]}'
 
 
 def riesgo_actual(usar_cache=True):
-    """Pide el pronostico, evalua los 48 barrios y devuelve todo junto."""
+    """Pide el pronostico, lee los avisos oficiales y evalua los 48 barrios.
+    La API lo pide muchas veces, por eso se guarda unos minutos (cache)."""
     ahora = time.time()
     vigente = ahora - _cache['momento'] < config.SEGUNDOS_CACHE_RIESGO
 
@@ -58,16 +74,38 @@ def riesgo_actual(usar_cache=True):
         return _cache['valor']
 
     dias = clima.obtener_pronostico()
-    dia = peor_dia(dias)
-    resultados = evaluar_barrios(dia)
+    scraping = avisos.buscar_avisos()
+
+    por_barrio = []
+    for barrio in barrios.BARRIOS:
+        por_barrio.append(riesgo_de_barrio(barrio, dias))
 
     valor = {
+        'actualizado': datetime.now().strftime('%d/%m/%Y %H:%M'),
         'dias': dias,
-        'dia': dia,
-        'resultados': resultados,
-        'conteo': contar_niveles(resultados),
+        'scraping': scraping,
+        'barrios': por_barrio,
     }
     _cache['momento'] = ahora
     _cache['valor'] = valor
 
     return valor
+
+
+def buscar_barrio(riesgo, barrio):
+    """Del resultado de riesgo_actual(), devuelve el del barrio pedido (o None)."""
+    for fila in riesgo['barrios']:
+        if fila['barrio'] == barrio:
+            return fila
+
+    return None
+
+
+def barrios_por_nivel(riesgo):
+    """{'emergencia': [...], 'alerta': [...], 'atencion': [...], 'normal': [...]}"""
+    grupos = {'emergencia': [], 'alerta': [], 'atencion': [], 'normal': []}
+
+    for fila in riesgo['barrios']:
+        grupos[fila['nivel']].append(fila['barrio'])
+
+    return grupos

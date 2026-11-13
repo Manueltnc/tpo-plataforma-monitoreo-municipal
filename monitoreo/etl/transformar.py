@@ -68,18 +68,15 @@ def contar_por_barrio(df):
     return tabla
 
 
-def calcular_vulnerabilidad(tabla):
-    """Percentil (0 a 1) y factor de vulnerabilidad (FACTOR_MIN a FACTOR_MAX) por barrio."""
-    tabla = tabla.copy()
-    cantidad = len(tabla)
+def ordenar_por_reclamos(tabla):
+    """Ordena los barrios de mas a menos reclamos, les pone un puesto (1 a 48) y marca
+    los que estan entre los CANTIDAD_BARRIOS_CON_MAS_RECLAMOS primeros."""
+    tabla = tabla.sort_values('reclamos', ascending=False).reset_index(drop=True)
 
-    orden = tabla['reclamos'].rank(method='average')          # 1 = menos reclamos
-    tabla['percentil'] = ((orden - 1) / (cantidad - 1)).round(3)
+    tabla['puesto'] = tabla.index + 1
+    tabla['con_mas_reclamos'] = tabla['puesto'] <= config.CANTIDAD_BARRIOS_CON_MAS_RECLAMOS
 
-    rango = config.FACTOR_MAX - config.FACTOR_MIN
-    tabla['factor_vulnerabilidad'] = (config.FACTOR_MIN + rango * tabla['percentil']).round(3)
-
-    return tabla.sort_values('reclamos', ascending=False).reset_index(drop=True)
+    return tabla
 
 
 def serie_semanal(df):
@@ -127,26 +124,3 @@ def comparar_semestres(df):
     comparacion['variacion_pct'] = (comparacion['diferencia'] / base * 100).round(1)
 
     return comparacion.sort_values('diferencia', ascending=False).reset_index()
-
-
-def reclamos_barrio_mes(df):
-    """Tabla dinamica: barrios en las filas, meses en las columnas."""
-    clima = df.query('es_clima').assign(mes=lambda d: d['fecha'].dt.month)
-
-    tabla = clima.pivot_table(
-        index='barrio', columns='mes', values='nro_solicitud',
-        aggfunc='count', fill_value=0,
-    )
-    tabla.columns = [f'mes_{mes:02d}' for mes in tabla.columns]
-
-    return tabla.reset_index()
-
-
-def resumen_categorias(df):
-    """Cuantos reclamos hay por categoria y cuantos siguen abiertos (agg con nombres)."""
-    resumen = df.groupby('categoria', observed=True).agg(
-        reclamos=('nro_solicitud', 'count'),
-        abiertos=('estado_general', lambda s: int((s == 'Abierto').sum())),
-    )
-
-    return resumen.nlargest(10, 'reclamos').reset_index()

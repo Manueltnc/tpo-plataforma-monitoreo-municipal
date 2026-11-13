@@ -5,20 +5,20 @@ import pandas as pd
 from monitoreo.app import config
 
 
-def _ruta(nombre):
+def ruta_de(nombre):
     config.DIR_PROCESADOS.mkdir(parents=True, exist_ok=True)
     return config.DIR_PROCESADOS / nombre
 
 
 def guardar_csv(df, nombre):
-    ruta = _ruta(nombre)
+    ruta = ruta_de(nombre)
     df.to_csv(ruta, index=False, encoding='utf-8')
     return ruta
 
 
 def guardar_excel(hojas, nombre):
     """hojas es un diccionario {nombre de hoja: DataFrame}."""
-    ruta = _ruta(nombre)
+    ruta = ruta_de(nombre)
 
     with pd.ExcelWriter(ruta, engine='openpyxl') as escritor:
         for hoja, df in hojas.items():
@@ -28,7 +28,7 @@ def guardar_excel(hojas, nombre):
 
 
 def guardar_json(df, nombre):
-    ruta = _ruta(nombre)
+    ruta = ruta_de(nombre)
     df.to_json(ruta, orient='records', force_ascii=False, indent=2, date_format='iso')
     return ruta
 

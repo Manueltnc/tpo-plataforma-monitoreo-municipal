@@ -1,5 +1,5 @@
 # N04 validacion y limpieza de datos, N05 y N06 listas y diccionarios de barrios,
-# N07 normalizacion de nombres.
+# N07 normalizacion de nombres y extraccion de dominios.
 
 import csv
 
@@ -28,14 +28,14 @@ ALIAS_BARRIOS = {
     'villa gral. mitre': 'Villa General Mitre',
 }
 
-# Vulnerabilidad de cada barrio. La calcula el ETL a partir de los reclamos
-# reales del SUACI 2023 y la guarda en data/processed/vulnerabilidad_barrios.csv
-RUTA_VULNERABILIDAD = config.DIR_PROCESADOS / 'vulnerabilidad_barrios.csv'
-VULNERABILIDAD_NEUTRA = {'reclamos': 0, 'percentil': 0.5, 'factor': 1.0}
-_vulnerabilidad = {}
+# Reclamos de cada barrio. Los calcula el ETL a partir de los reclamos reales del
+# SUACI 2023 y los guarda en data/processed/reclamos_por_barrio.csv
+RUTA_RECLAMOS = config.DIR_PROCESADOS / 'reclamos_por_barrio.csv'
+SIN_DATOS = {'reclamos': 0, 'puesto': 0, 'con_mas_reclamos': False}
+_reclamos = {}
 
 
-# normalizamos a minisculas, sin acentos y sin whitespace
+# normalizamos a minusculas, sin acentos y sin espacios de mas
 def normalizar(texto):
     texto = texto.strip().lower()
     texto = texto.replace('á', 'a')
@@ -49,6 +49,7 @@ def normalizar(texto):
 
 
 def validar_barrio(nombre):
+    """Devuelve el nombre oficial del barrio, o None si no existe."""
     buscado = normalizar(nombre)
 
     if buscado in ALIAS_BARRIOS:
@@ -62,6 +63,7 @@ def validar_barrio(nombre):
 
 
 def extraer_dominio(url):
+    """https://www.argentina.gob.ar/noticias -> argentina.gob.ar"""
     dominio = url.replace('https://', '').replace('http://', '')
 
     if '/' in dominio:
@@ -73,44 +75,34 @@ def extraer_dominio(url):
     return dominio
 
 
-def armar_mensaje(barrio, evento, nivel, puntos, motivos):
-    texto = f'[{nivel.upper()}] {barrio} - {evento}\n'
-    texto = texto + f'Puntaje de riesgo: {puntos}\n'
-    texto = texto + 'Motivos:\n'
-
-    for motivo in motivos:
-        texto = texto + f'  - {motivo}\n'
-
-    return texto
-
-def cargar_vulnerabilidad(ruta=RUTA_VULNERABILIDAD):
+def cargar_reclamos(ruta=RUTA_RECLAMOS):
     """Lee el CSV que genero el ETL y arma un diccionario {barrio: datos}."""
-    _vulnerabilidad.clear()
+    _reclamos.clear()
 
     if not ruta.exists():
-        return _vulnerabilidad
+        return _reclamos
 
     with open(ruta, encoding='utf-8', newline='') as archivo:
         for fila in csv.DictReader(archivo):
-            _vulnerabilidad[fila['barrio']] = {
+            _reclamos[fila['barrio']] = {
                 'reclamos': int(fila['reclamos']),
-                'percentil': float(fila['percentil']),
-                'factor': float(fila['factor_vulnerabilidad']),
+                'puesto': int(fila['puesto']),
+                'con_mas_reclamos': fila['con_mas_reclamos'] == 'True',
             }
 
-    return _vulnerabilidad
+    return _reclamos
 
 
-def hay_datos_vulnerabilidad():
-    if not _vulnerabilidad:
-        cargar_vulnerabilidad()
+def hay_datos_de_reclamos():
+    if not _reclamos:
+        cargar_reclamos()
 
-    return len(_vulnerabilidad) > 0
+    return len(_reclamos) > 0
 
 
-def vulnerabilidad_de_barrio(barrio):
-    """Si no hay datos del ETL se usa un factor neutro (1.0): ni suma ni resta."""
-    if not _vulnerabilidad:
-        cargar_vulnerabilidad()
+def reclamos_de_barrio(barrio):
+    """Si no hay datos del ETL, el barrio no sube de nivel."""
+    if not _reclamos:
+        cargar_reclamos()
 
-    return _vulnerabilidad.get(barrio, VULNERABILIDAD_NEUTRA)
+    return _reclamos.get(barrio, SIN_DATOS)

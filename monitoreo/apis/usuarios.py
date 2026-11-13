@@ -1,90 +1,91 @@
-# Usuarios y API keys de la API propia (N15, N17).
-# Los usuarios se guardan en SQLite (data/usuarios.db). La API key se muestra
-# una sola vez al registrarse y en la base queda solo su hash, asi que si alguien
-# lee la base no puede usar las claves.
+# Vecinos registrados en la API propia (N15, N17).
+# Se guardan en un CSV (data/usuarios.csv) que se lee y se escribe con pandas.
+# Cada vecino tiene nombre, email, el barrio donde vive y su API key.
+# El CSV esta en .gitignore porque tiene las claves.
 
-import hashlib
 import re
 import secrets
-import sqlite3
 import time
-from collections import deque
 from datetime import datetime
 
-from monitoreo.app import config
+import pandas as pd
+
+from monitoreo.app import barrios, config
+
+COLUMNAS = ['nombre', 'email', 'barrio', 'api_key', 'fecha_alta']
 
 
 class UsuarioExistente(Exception):
     pass
 
 
-def _conectar(ruta=None):
-    ruta = ruta or config.RUTA_DB_USUARIOS
-    ruta.parent.mkdir(parents=True, exist_ok=True)
+def leer_usuarios(ruta=None):
+    """Devuelve un DataFrame con los usuarios (vacio si todavia no hay ninguno)."""
+    ruta = ruta or config.RUTA_USUARIOS
 
-    conexion = sqlite3.connect(ruta)
-    conexion.execute(
-        'CREATE TABLE IF NOT EXISTS usuarios ('
-        'id INTEGER PRIMARY KEY AUTOINCREMENT, '
-        'nombre TEXT NOT NULL, '
-        'email TEXT NOT NULL UNIQUE, '
-        'clave_hash TEXT NOT NULL, '
-        'creado TEXT NOT NULL)'
-    )
-    return conexion
+    if not ruta.exists():
+        return pd.DataFrame(columns=COLUMNAS)
 
-
-def hashear(clave):
-    return hashlib.sha256(clave.encode('utf-8')).hexdigest()
+    # dtype=str: todo se lee como texto, asi la clave no se transforma en numero
+    return pd.read_csv(ruta, dtype=str)
 
 
 def email_valido(email):
     return re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email) is not None
 
 
-def registrar_usuario(nombre, email, ruta=None):
-    """Crea el usuario y devuelve su API key (unica vez que se ve completa)."""
+def registrar_usuario(nombre, email, barrio, ruta=None):
+    """Agrega un vecino al CSV y devuelve su API key."""
+    ruta = ruta or config.RUTA_USUARIOS
     nombre = nombre.strip()
     email = email.strip().lower()
+    barrio_oficial = barrios.validar_barrio(barrio)
 
     if len(nombre) < 2:
         raise ValueError('El nombre es muy corto')
 
     if not email_valido(email):
-        raise ValueError('El email no es valido')
+        raise ValueError('El email no es válido')
 
-    clave = secrets.token_urlsafe(24)
-    conexion = _conectar(ruta)
+    if barrio_oficial is None:
+        raise ValueError(f'No existe el barrio "{barrio}"')
 
-    try:
-        conexion.execute(
-            'INSERT INTO usuarios (nombre, email, clave_hash, creado) VALUES (?, ?, ?, ?)',
-            (nombre, email, hashear(clave), datetime.now().isoformat(timespec='seconds')),
-        )
-        conexion.commit()
-    except sqlite3.IntegrityError:
+    usuarios = leer_usuarios(ruta)
+
+    if email in usuarios['email'].values:
         raise UsuarioExistente(f'Ya hay un usuario registrado con {email}')
-    finally:
-        conexion.close()
+
+    clave = secrets.token_hex(16)     # 32 caracteres al azar
+
+    nuevo = pd.DataFrame([{
+        'nombre': nombre,
+        'email': email,
+        'barrio': barrio_oficial,
+        'api_key': clave,
+        'fecha_alta': datetime.now().strftime('%Y-%m-%d %H:%M'),
+    }])
+    usuarios = pd.concat([usuarios, nuevo], ignore_index=True)
+
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    usuarios.to_csv(ruta, index=False)
 
     return clave
 
 
-def validar_clave(clave, ruta=None):
-    """Devuelve {'nombre', 'email'} si la API key existe, o None."""
-    conexion = _conectar(ruta)
+def buscar_por_clave(clave, ruta=None):
+    """Devuelve el usuario (diccionario) dueño de esa API key, o None."""
+    usuarios = leer_usuarios(ruta)
+    encontrados = usuarios[usuarios['api_key'] == clave]
 
-    try:
-        fila = conexion.execute(
-            'SELECT nombre, email FROM usuarios WHERE clave_hash = ?', (hashear(clave),)
-        ).fetchone()
-    finally:
-        conexion.close()
-
-    if fila is None:
+    if len(encontrados) == 0:
         return None
 
-    return {'nombre': fila[0], 'email': fila[1]}
+    return encontrados.iloc[0].to_dict()
+
+
+def lista_de_usuarios(ruta=None):
+    """Todos los usuarios como lista de diccionarios (para mandarles los correos)."""
+    return leer_usuarios(ruta).to_dict('records')
 
 
 class LimitadorPedidos:
@@ -93,17 +94,23 @@ class LimitadorPedidos:
     def __init__(self, maximo, ventana=60):
         self.maximo = maximo
         self.ventana = ventana
-        self.pedidos = {}
+        self.pedidos = {}           # {clave: [momentos de los ultimos pedidos]}
 
     def permitir(self, clave, ahora=None):
-        ahora = time.time() if ahora is None else ahora
-        cola = self.pedidos.setdefault(clave, deque())
+        if ahora is None:
+            ahora = time.time()
 
-        while cola and ahora - cola[0] >= self.ventana:
-            cola.popleft()
+        # nos quedamos solo con los pedidos que estan dentro de la ventana
+        anteriores = self.pedidos.get(clave, [])
+        recientes = []
+        for momento in anteriores:
+            if ahora - momento < self.ventana:
+                recientes.append(momento)
 
-        if len(cola) >= self.maximo:
+        if len(recientes) >= self.maximo:
+            self.pedidos[clave] = recientes
             return False
 
-        cola.append(ahora)
+        recientes.append(ahora)
+        self.pedidos[clave] = recientes
         return True

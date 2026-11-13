@@ -1,0 +1,49 @@
+barrio,reclamos,participacion_pct,puesto,con_mas_reclamos
+Palermo,2419,5.89,1,True
+Flores,2147,5.23,2,True
+Villa Devoto,1990,4.85,3,True
+Caballito,1865,4.54,4,True
+Villa Urquiza,1848,4.5,5,True
+Mataderos,1417,3.45,6,True
+Villa del Parque,1326,3.23,7,True
+Belgrano,1296,3.16,8,True
+Saavedra,1288,3.14,9,True
+Liniers,1259,3.07,10,True
+Villa Crespo,1217,2.97,11,True
+Villa Pueyrredon,1211,2.95,12,True
+Almagro,1086,2.65,13,True
+Monte Castro,1056,2.57,14,True
+Parque Chacabuco,1030,2.51,15,True
+Villa Lugano,977,2.38,16,True
+Nueva Pompeya,964,2.35,17,False
+Nunez,934,2.28,18,False
+Boedo,856,2.09,19,False
+Balvanera,822,2.0,20,False
+Parque Avellaneda,817,1.99,21,False
+Velez Sarsfield,795,1.94,22,False
+Villa Santa Rita,789,1.92,23,False
+Barracas,763,1.86,24,False
+Villa Luro,746,1.82,25,False
+Floresta,742,1.81,26,False
+Villa Ortuzar,682,1.66,27,False
+Parque Chas,680,1.66,28,False
+Colegiales,678,1.65,29,False
+Villa General Mitre,658,1.6,30,False
+San Cristobal,618,1.51,31,False
+Chacarita,611,1.49,32,False
+Agronomia,555,1.35,33,False
+La Paternal,552,1.35,34,False
+Versalles,548,1.34,35,False
+Recoleta,520,1.27,36,False
+Coghlan,519,1.26,37,False
+Parque Patricios,484,1.18,38,False
+Villa Real,466,1.14,39,False
+Villa Riachuelo,295,0.72,40,False
+La Boca,294,0.72,41,False
+Villa Soldati,282,0.69,42,False
+Constitucion,239,0.58,43,False
+Monserrat,192,0.47,44,False
+San Nicolas,163,0.4,45,False
+Retiro,158,0.38,46,False
+San Telmo,122,0.3,47,False
+Puerto Madero,63,0.15,48,False

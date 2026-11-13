@@ -1,5 +1,6 @@
 # E de ETL: traer los datos a DataFrames (N19, N21).
-# Tres fuentes: archivo comprimido/CSV (SUACI), API (pronostico) y web (avisos).
+# El SUACI viene como CSV o comprimido en ZIP. El pronostico de la API tambien
+# se pasa a DataFrame para poder graficarlo.
 
 from pathlib import Path
 
@@ -15,15 +16,14 @@ COLUMNAS_SUACI = [
 
 
 def buscar_archivos_suaci():
-    """Busca CSV o ZIP en data/raw. Si no hay nada, usa la muestra de data/fixtures."""
+    """Busca el SUACI completo (CSV o ZIP) en data/raw. Si no hay nada, devuelve []."""
     if config.DIR_RAW.exists():
         for patron in ('*.csv', '*.zip'):
             archivos = sorted(config.DIR_RAW.glob(patron))
             if archivos:
                 return archivos
 
-    print('  [etl] No hay archivos en data/raw: uso la muestra de data/fixtures.')
-    return [config.RUTA_FIXTURE_SUACI]
+    return []
 
 
 def leer_suaci(rutas):
@@ -45,14 +45,4 @@ def pronostico_a_dataframe(dias):
     """Los dias que arma clima.resumir_por_dia pasan a DataFrame."""
     df = pd.DataFrame(dias)
     df['fecha'] = pd.to_datetime(df['fecha'])
-    return df
-
-
-def avisos_a_dataframe(avisos):
-    """Los avisos que arma avisos.limpiar_avisos pasan a DataFrame."""
-    df = pd.DataFrame(avisos, columns=['titulo', 'enlace', 'fecha', 'fecha_iso', 'clases'])
-
-    # 'clases' es una lista; la pasamos a texto para poder guardarla en CSV
-    df['clases'] = df['clases'].apply(lambda c: ' '.join(c) if isinstance(c, list) else c)
-
     return df
